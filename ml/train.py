@@ -11,22 +11,39 @@ from supabase import create_client
 from config import SUPABASE_SERVICE_KEY, SUPABASE_URL
 from features import FEATURE_COLUMNS, build_training_data
 
+SUPABASE_PAGE_SIZE = 5000
+
+
+def _fetch_all_rows(sb, table: str) -> list[dict]:
+    """Fetch all rows from a Supabase table with pagination."""
+    all_data = []
+    offset = 0
+    while True:
+        resp = (
+            sb.table(table)
+            .select("*")
+            .range(offset, offset + SUPABASE_PAGE_SIZE - 1)
+            .execute()
+        )
+        all_data.extend(resp.data)
+        if len(resp.data) < SUPABASE_PAGE_SIZE:
+            break
+        offset += SUPABASE_PAGE_SIZE
+    return all_data
+
 
 def load_data_from_supabase() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load forecasts and observations from Supabase."""
     sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-    forecasts_resp = sb.table("forecasts").select("*").execute()
-    obs_resp = sb.table("observations").select("*").execute()
-
-    forecasts = pd.DataFrame(forecasts_resp.data)
-    observations = pd.DataFrame(obs_resp.data)
+    forecasts = pd.DataFrame(_fetch_all_rows(sb, "forecasts"))
+    observations = pd.DataFrame(_fetch_all_rows(sb, "observations"))
 
     print(f"Loaded {len(forecasts)} forecasts, {len(observations)} observations")
     return forecasts, observations
 
 
-def train_temperature_model(df: pd.DataFrame) -> xgb.XGBRegressor:
+def train_temperature_model(df: pd.DataFrame) -> tuple[xgb.XGBRegressor, dict]:
     """Train XGBoost model to predict temperature forecast error."""
     available_features = [f for f in FEATURE_COLUMNS if f in df.columns]
     df_clean = df.dropna(subset=available_features + ["temp_error"])
@@ -41,8 +58,8 @@ def train_temperature_model(df: pd.DataFrame) -> xgb.XGBRegressor:
 
     print(f"Training on {len(X)} samples with {len(available_features)} features")
 
-    # Temporal cross-validation
-    tscv = TimeSeriesSplit(n_splits=3)
+    # Temporal cross-validation with gap to prevent leakage
+    tscv = TimeSeriesSplit(n_splits=5, gap=24)
     mae_scores = []
 
     for fold, (train_idx, val_idx) in enumerate(tscv.split(X)):
@@ -50,11 +67,15 @@ def train_temperature_model(df: pd.DataFrame) -> xgb.XGBRegressor:
         y_train, y_val = y.iloc[train_idx], y.iloc[val_idx]
 
         model = xgb.XGBRegressor(
-            n_estimators=200,
-            max_depth=5,
+            n_estimators=500,
+            max_depth=4,
             learning_rate=0.05,
             subsample=0.8,
             colsample_bytree=0.8,
+            min_child_weight=10,
+            reg_alpha=0.1,
+            reg_lambda=1.0,
+            objective="reg:pseudohubererror",
             random_state=42,
         )
         model.fit(
@@ -73,16 +94,19 @@ def train_temperature_model(df: pd.DataFrame) -> xgb.XGBRegressor:
 
     # Train final model on all data
     final_model = xgb.XGBRegressor(
-        n_estimators=200,
-        max_depth=5,
+        n_estimators=500,
+        max_depth=4,
         learning_rate=0.05,
         subsample=0.8,
         colsample_bytree=0.8,
+        min_child_weight=10,
+        reg_alpha=0.1,
+        reg_lambda=1.0,
+        objective="reg:pseudohubererror",
         random_state=42,
     )
     final_model.fit(X, y, verbose=False)
 
-    # Save feature list with model
     metadata = {
         "features": available_features,
         "mean_cv_mae": float(np.mean(mae_scores)),

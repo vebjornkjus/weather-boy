@@ -1,7 +1,7 @@
 """Run XGBoost correction on fresh Yr forecasts and write to Supabase."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -9,7 +9,7 @@ import xgboost as xgb
 from supabase import create_client
 
 from config import SUPABASE_SERVICE_KEY, SUPABASE_URL
-from features import add_cyclical_features
+from features import add_cyclical_features, add_station_metadata, add_dewpoint_depression
 
 
 def load_model() -> tuple[xgb.XGBRegressor, dict]:
@@ -23,38 +23,51 @@ def load_model() -> tuple[xgb.XGBRegressor, dict]:
     return model, metadata
 
 
-def compute_frost_risk(temp: float, wind_speed: float, cloud_cover: float | None) -> str:
+def compute_frost_risk(
+    temp: float, wind_speed: float, cloud_cover: float | None, humidity: float | None
+) -> str:
     """Determine frost risk level for farmers."""
-    if temp > 4:
+    if temp > 6:
         return "low"
     cloud = cloud_cover if cloud_cover is not None else 50
+    hum = humidity if humidity is not None else 70
+
     if temp <= 0:
         return "high"
+    # Clear sky + calm + near freezing + humid = high risk (radiation frost)
     if temp <= 2 and wind_speed < 2 and cloud < 30:
         return "high"
-    if temp <= 3 and wind_speed < 3:
+    if temp <= 3 and wind_speed < 2 and hum > 90:
+        return "high"
+    if temp <= 4 and wind_speed < 3:
+        return "medium"
+    if temp <= 6 and wind_speed < 2 and cloud < 20:
         return "medium"
     return "low"
 
 
 def compute_mowing_ok(temp: float, wind_speed: float, precip: float | None) -> bool:
-    """Can the farmer mow? Needs dry, warm, some wind for drying."""
+    """Can the farmer mow? Needs dry, reasonably warm, some wind for drying."""
     rain = precip if precip is not None else 0
-    return temp >= 15 and wind_speed >= 1.5 and rain < 0.2
+    return temp >= 10 and wind_speed >= 1.5 and rain < 0.2
 
 
-def compute_spraying_ok(wind_speed: float, precip: float | None) -> bool:
-    """Safe to spray? Needs low wind and no rain."""
+def compute_spraying_ok(
+    temp: float, wind_speed: float, precip: float | None, humidity: float | None
+) -> bool:
+    """Safe to spray? Needs low wind, no rain, right temp and humidity."""
     rain = precip if precip is not None else 0
-    return wind_speed < 3 and rain < 0.1
+    hum = humidity if humidity is not None else 70
+    return wind_speed < 3 and rain < 0.1 and 8 <= temp <= 25 and 40 <= hum <= 90
 
 
 def compute_drying_score(temp: float, wind_speed: float, humidity: float | None) -> float:
-    """Drying conditions score 0-1."""
+    """Drying conditions score 0-1. Calibrated for Norwegian conditions."""
     hum = humidity if humidity is not None else 70
-    temp_score = min(max((temp - 10) / 20, 0), 1)
-    wind_score = min(max(wind_speed / 8, 0), 1)
-    hum_score = min(max((100 - hum) / 60, 0), 1)
+    # Norwegian calibration: drying starts at 5°C, peaks around 25°C
+    temp_score = min(max((temp - 5) / 15, 0), 1)
+    wind_score = min(max(wind_speed / 6, 0), 1)
+    hum_score = min(max((100 - hum) / 50, 0), 1)
     return round(temp_score * 0.3 + wind_score * 0.3 + hum_score * 0.4, 2)
 
 
@@ -71,11 +84,12 @@ def run_inference():
         has_model = False
         print("No trained model found — using raw Yr forecasts with decision signals only")
 
-    # Get latest forecasts (last 6 hours)
+    # Get forecasts from the last 6 hours
+    six_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
     resp = (
         sb.table("forecasts")
         .select("*")
-        .gte("fetched_at", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
+        .gte("fetched_at", six_hours_ago)
         .execute()
     )
 
@@ -104,19 +118,22 @@ def run_inference():
 
     if has_model:
         df = add_cyclical_features(df)
-        # Rename columns to match training feature names
+        df = add_station_metadata(df)
+        df = add_dewpoint_depression(df)
+
         rename_map = {
             "temp": "temp_forecast",
             "wind_speed": "wind_speed_forecast",
             "humidity": "humidity_forecast",
             "pressure": "pressure_forecast",
+            "dew_point": "dew_point_forecast",
         }
         df_features = df.rename(columns=rename_map)
 
-        available = [f for f in features if f in df_features.columns]
+        # Let XGBoost handle missing values natively (NaN)
         for f in features:
             if f not in df_features.columns:
-                df_features[f] = 0  # fill missing features with 0
+                df_features[f] = np.nan
 
         X = df_features[features]
         predicted_error = model.predict(X)
@@ -141,10 +158,13 @@ def run_inference():
             "temp_original": row["temp"],
             "temp_corrected": round(float(temp_c), 1),
             "wind_speed_original": wind,
-            "wind_speed_corrected": wind,  # no wind correction yet
-            "frost_risk": compute_frost_risk(temp_c, wind, cloud),
+            "wind_speed_corrected": wind,
+            "precip": precip,
+            "humidity": humidity,
+            "cloud_cover": cloud,
+            "frost_risk": compute_frost_risk(temp_c, wind, cloud, humidity),
             "mowing_ok": compute_mowing_ok(temp_c, wind, precip),
-            "spraying_ok": compute_spraying_ok(wind, precip),
+            "spraying_ok": compute_spraying_ok(temp_c, wind, precip, humidity),
             "drying_score": compute_drying_score(temp_c, wind, humidity),
             "confidence": round(confidence, 2),
         })

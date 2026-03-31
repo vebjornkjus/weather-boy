@@ -8,6 +8,21 @@ from config import FROST_CLIENT_ID, STATIONS, Station
 
 FROST_BASE = "https://frost.met.no/observations/v0.jsonld"
 
+# Quality codes: 0=OK, 1=suspicious but usable, 2=suspect, 3=wrong
+ACCEPTABLE_QUALITY = {"0", "1"}
+
+ELEMENTS = [
+    "air_temperature",
+    "min(air_temperature PT1H)",
+    "surface_temperature",
+    "wind_speed",
+    "wind_from_direction",
+    "sum(precipitation_amount PT1H)",
+    "relative_humidity",
+    "air_pressure_at_sea_level",
+    "dew_point_temperature",
+]
+
 
 def fetch_observations(
     station: Station,
@@ -23,14 +38,7 @@ def fetch_observations(
     params = {
         "sources": station.id,
         "referencetime": f"{from_time.isoformat()}/{to_time.isoformat()}",
-        "elements": ",".join([
-            "air_temperature",
-            "wind_speed",
-            "wind_from_direction",
-            "sum(precipitation_amount PT1H)",
-            "relative_humidity",
-            "air_pressure_at_sea_level",
-        ]),
+        "elements": ",".join(ELEMENTS),
         "timeresolutions": "PT1H",
     }
 
@@ -51,16 +59,25 @@ def _parse_observations(data: dict, station_id: str) -> list[dict]:
     records = []
     for item in data.get("data", []):
         obs_time = item["referenceTime"]
-        row = {
+        row: dict = {
             "station_id": station_id,
             "observed_at": obs_time,
         }
         for obs in item.get("observations", []):
+            # Filter by quality code
+            quality = str(obs.get("qualityCode", "0"))
+            if quality not in ACCEPTABLE_QUALITY:
+                continue
+
             element = obs["elementId"]
             value = obs["value"]
             match element:
                 case "air_temperature":
                     row["temp"] = value
+                case "min(air_temperature PT1H)":
+                    row["temp_min"] = value
+                case "surface_temperature":
+                    row["surface_temp"] = value
                 case "wind_speed":
                     row["wind_speed"] = value
                 case "wind_from_direction":
@@ -71,6 +88,8 @@ def _parse_observations(data: dict, station_id: str) -> list[dict]:
                     row["humidity"] = value
                 case "air_pressure_at_sea_level":
                     row["pressure"] = value
+                case "dew_point_temperature":
+                    row["dew_point"] = value
 
         records.append(row)
     return records

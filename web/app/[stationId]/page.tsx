@@ -2,8 +2,9 @@ import Link from "next/link";
 import { supabase, type Station, type Correction } from "@/lib/supabase";
 import { DecisionCards } from "./decision-cards";
 import { ForecastChart } from "./forecast-chart";
+import { FavoriteButton } from "./favorite-button";
 
-export const revalidate = 900; // 15 min
+export const revalidate = 900;
 
 type Props = {
   params: Promise<{ stationId: string }>;
@@ -42,27 +43,45 @@ export default async function StationPage({ params }: Props) {
     return (
       <div className="py-12 text-center">
         <p className="text-lg font-medium">Stasjon ikke funnet</p>
-        <Link href="/" className="mt-2 text-sm text-blue-600 hover:underline">
+        <Link
+          href="/"
+          className="mt-2 inline-block rounded-lg bg-stone-100 px-4 py-3 text-sm text-stone-700 hover:bg-stone-200"
+        >
           Tilbake til oversikten
         </Link>
       </div>
     );
   }
 
+  const lastUpdated = corrections.length > 0 ? corrections[0].created_at : null;
+
   return (
     <div>
       <Link
         href="/"
-        className="mb-4 inline-block text-sm text-stone-500 hover:text-stone-700"
+        className="mb-4 inline-block rounded-lg bg-stone-100 px-4 py-3 text-sm text-stone-600 hover:bg-stone-200 active:bg-stone-300"
       >
-        &larr; Alle stasjoner
+        ← Alle stasjoner
       </Link>
 
-      <h1 className="mb-1 text-2xl font-bold">{station.name}</h1>
-      <p className="mb-6 text-sm text-stone-500">
-        {station.region} &middot; {station.elevation} moh. &middot;{" "}
-        {station.lat.toFixed(2)}N, {station.lon.toFixed(2)}E
-      </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="mb-1 text-2xl font-bold">{station.name}</h1>
+          <p className="text-sm text-stone-500">
+            {station.region} · {station.elevation} moh.
+          </p>
+          {lastUpdated && (
+            <p className="mt-1 text-xs text-stone-400">
+              Oppdatert{" "}
+              {new Date(lastUpdated).toLocaleTimeString("nb-NO", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </p>
+          )}
+        </div>
+        <FavoriteButton stationId={station.id} />
+      </div>
 
       {corrections.length === 0 ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center">

@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { supabase, type Station } from "@/lib/supabase";
+import { StationList } from "./station-list";
 
 export const revalidate = 3600;
 
@@ -35,20 +35,7 @@ export default async function Home() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {stations.map((station) => (
-            <Link
-              key={station.id}
-              href={`/${station.id}`}
-              className="rounded-lg border border-stone-200 bg-white p-4 transition hover:border-stone-300 hover:shadow-sm"
-            >
-              <div className="font-medium">{station.name}</div>
-              <div className="text-sm text-stone-500">
-                {station.region} &middot; {station.elevation} moh.
-              </div>
-            </Link>
-          ))}
-        </div>
+        <StationList stations={stations} />
       )}
     </div>
   );

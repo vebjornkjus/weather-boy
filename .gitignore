@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+ml/.env
+
+# Node
+node_modules/
+.next/
+web/.env.local
+
+# Models (large files tracked separately)
+# ml/models/*.json is committed intentionally
+
+# OS
+.DS_Store

@@ -67,7 +67,7 @@ def run_inference():
         features = metadata["features"]
         has_model = True
         print(f"Model loaded (trained on {metadata['n_samples']} samples, MAE={metadata['mean_cv_mae']:.3f}°C)")
-    except FileNotFoundError:
+    except (FileNotFoundError, xgb.core.XGBoostError):
         has_model = False
         print("No trained model found — using raw Yr forecasts with decision signals only")
 

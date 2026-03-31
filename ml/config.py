@@ -32,4 +32,5 @@ STATIONS = [
     Station("SN12680", "Kise", 60.7700, 10.8100, 128, "Hedmark"),
     Station("SN27500", "Tjølling", 59.0833, 10.1333, 25, "Vestfold"),
     Station("SN90450", "Holt", 69.6533, 18.9058, 20, "Tromsø"),
+    Station("SN4200", "Kjeller (Leirsund)", 59.9708, 11.0383, 108, "Akershus"),
 ]

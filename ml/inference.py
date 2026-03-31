@@ -71,6 +71,54 @@ def compute_drying_score(temp: float, wind_speed: float, humidity: float | None)
     return round(temp_score * 0.3 + wind_score * 0.3 + hum_score * 0.4, 2)
 
 
+def _compute_recent_bias(sb) -> dict[str, float]:
+    """Compute per-station temperature bias from recent forecast/observation pairs.
+
+    Looks at the last 48 hours of forecasts that have corresponding observations,
+    and computes the mean error (forecast - observed) per station.
+    """
+    two_days_ago = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+
+    # Get recent forecasts with short lead times (most comparable to observations)
+    forecasts_resp = (
+        sb.table("forecasts")
+        .select("station_id,valid_at,temp")
+        .gte("valid_at", two_days_ago)
+        .lte("lead_time_h", 6)
+        .execute()
+    )
+    if not forecasts_resp.data:
+        return {}
+
+    # Get recent observations
+    obs_resp = (
+        sb.table("observations")
+        .select("station_id,observed_at,temp")
+        .gte("observed_at", two_days_ago)
+        .execute()
+    )
+    if not obs_resp.data:
+        return {}
+
+    fc = pd.DataFrame(forecasts_resp.data)
+    ob = pd.DataFrame(obs_resp.data)
+
+    fc["hour"] = pd.to_datetime(fc["valid_at"], utc=True).dt.floor("h")
+    ob["hour"] = pd.to_datetime(ob["observed_at"], utc=True).dt.floor("h")
+
+    merged = fc.merge(ob, on=["station_id", "hour"], suffixes=("_fc", "_ob"))
+    if merged.empty:
+        return {}
+
+    merged["error"] = merged["temp_fc"] - merged["temp_ob"]
+    bias = merged.groupby("station_id")["error"].mean().to_dict()
+
+    for sid, b in bias.items():
+        print(f"  Bias {sid}: {b:+.2f}°C")
+
+    return bias
+
+
 def run_inference():
     """Load latest forecasts, correct them, write to Supabase."""
     sb = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -82,7 +130,7 @@ def run_inference():
         print(f"Model loaded (trained on {metadata['n_samples']} samples, MAE={metadata['mean_cv_mae']:.3f}°C)")
     except (FileNotFoundError, xgb.core.XGBoostError):
         has_model = False
-        print("No trained model found — using raw Yr forecasts with decision signals only")
+        print("No trained model found — using recent-bias correction")
 
     # Get forecasts from the last 6 hours
     six_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
@@ -140,8 +188,15 @@ def run_inference():
         df["temp_corrected"] = df["temp"] - predicted_error
         confidence = max(0.3, 1 - metadata["mean_cv_mae"] / 3)
     else:
-        df["temp_corrected"] = df["temp"]
-        confidence = 0.1
+        # Simple bias correction: compare recent forecasts to observations
+        bias_by_station = _compute_recent_bias(sb)
+        df["temp_corrected"] = df.apply(
+            lambda row: row["temp"] - bias_by_station.get(row["station_id"], 0),
+            axis=1,
+        )
+        n_corrected = sum(1 for sid in df["station_id"] if sid in bias_by_station)
+        print(f"Applied recent-bias correction to {n_corrected} records ({len(bias_by_station)} stations with bias data)")
+        confidence = 0.2
 
     corrections = []
     for _, row in df.iterrows():

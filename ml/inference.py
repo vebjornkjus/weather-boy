@@ -132,30 +132,40 @@ def run_inference():
         has_model = False
         print("No trained model found — using recent-bias correction")
 
-    # Get forecasts from the last 6 hours
+    # Get forecasts from the last 6 hours (paginated)
     six_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
-    resp = (
-        sb.table("forecasts")
-        .select("*")
-        .gte("fetched_at", six_hours_ago)
-        .execute()
-    )
+    all_forecasts: list[dict] = []
+    offset = 0
+    page_size = 1000
+    while True:
+        resp = (
+            sb.table("forecasts")
+            .select("*")
+            .gte("fetched_at", six_hours_ago)
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        all_forecasts.extend(resp.data)
+        if len(resp.data) < page_size:
+            break
+        offset += page_size
 
-    if not resp.data:
+    if not all_forecasts:
         # Fallback: get most recent batch
         resp = (
             sb.table("forecasts")
             .select("*")
             .order("fetched_at", desc=True)
-            .limit(500)
+            .limit(1000)
             .execute()
         )
+        all_forecasts = resp.data
 
-    if not resp.data:
+    if not all_forecasts:
         print("No forecasts available to correct")
         return
 
-    df = pd.DataFrame(resp.data)
+    df = pd.DataFrame(all_forecasts)
 
     # Deduplicate: keep only the latest fetch per (station, valid_at, lead_time)
     df = (

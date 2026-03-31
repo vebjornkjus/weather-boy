@@ -42,7 +42,7 @@ export default function RootLayout({
             <span className="text-sm text-stone-500">Vær for bønder</span>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
           {children}
         </main>
         <footer className="border-t border-stone-200 bg-white px-4 py-3 text-center text-xs text-stone-400">

@@ -293,7 +293,7 @@ export function DecisionCards({ corrections }: Props) {
       <p className="mb-2 text-xs text-stone-400">
         Sesong: {seasonLabels[season]} — kort tilpasset
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
         {cards.map((Card, i) => (
           <Card key={i} corrections={corrections} />
         ))}

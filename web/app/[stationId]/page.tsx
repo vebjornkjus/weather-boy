@@ -91,10 +91,10 @@ export default async function StationPage({ params }: Props) {
           </p>
         </div>
       ) : (
-        <>
+        <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-6">
           <DecisionCards corrections={corrections} />
           <ForecastChart corrections={corrections} />
-        </>
+        </div>
       )}
     </div>
   );

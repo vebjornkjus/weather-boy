@@ -94,6 +94,12 @@ def run_inference():
         return
 
     df = pd.DataFrame(resp.data)
+
+    # Deduplicate: keep only the latest fetch per (station, valid_at, lead_time)
+    df = (
+        df.sort_values("fetched_at")
+        .drop_duplicates(subset=["station_id", "valid_at", "lead_time_h"], keep="last")
+    )
     print(f"Processing {len(df)} forecast records")
 
     if has_model:

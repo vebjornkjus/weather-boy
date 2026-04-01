@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#fafaf9",
+  themeColor: "#dce8f5",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -33,20 +33,29 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="no" className={`${geist.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col bg-stone-50 text-stone-900 font-[family-name:var(--font-geist)]">
-        <header className="border-b border-stone-200 bg-white px-4 py-3">
-          <div className="mx-auto flex max-w-4xl items-center justify-between">
-            <a href="/" className="text-lg font-semibold tracking-tight">
-              ⛅ Weather-Boy
+      <body className="sky-gradient min-h-full flex flex-col text-slate-800">
+        <header className="relative z-10 px-5 pt-5 pb-3">
+          <div className="mx-auto flex max-w-3xl items-center justify-between">
+            <a href="/" className="group flex items-center gap-2">
+              <span className="text-2xl drop-shadow-sm">⛅</span>
+              <span className="font-[family-name:var(--font-display)] text-xl font-normal tracking-tight text-slate-700 group-hover:text-slate-900 transition-colors">
+                Weather-Boy
+              </span>
             </a>
-            <span className="text-sm text-stone-500">Vær for bønder</span>
+            <span className="text-xs tracking-widest uppercase text-slate-400 font-medium">
+              Vær for bønder
+            </span>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+
+        <main className="relative z-10 mx-auto w-full max-w-3xl flex-1 px-5 py-4">
           {children}
         </main>
-        <footer className="border-t border-stone-200 bg-white px-4 py-3 text-center text-xs text-stone-400">
-          Data fra Yr og MET Frost · Korrigert med maskinlæring
+
+        <footer className="relative z-10 px-5 pb-5 pt-8 text-center">
+          <p className="text-[11px] tracking-wide text-slate-400/70">
+            Data fra Yr & MET Frost · Korrigert med maskinlæring
+          </p>
         </footer>
       </body>
     </html>

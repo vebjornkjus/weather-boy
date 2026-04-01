@@ -22,15 +22,19 @@ export default async function Home() {
 
   return (
     <div>
-      <h1 className="mb-2 text-2xl font-bold">Velg stasjon</h1>
-      <p className="mb-6 text-stone-500">
-        Korrigerte værvarsler for landbruksstasjoner i Norge
-      </p>
+      <div className="mb-8 mt-2">
+        <h1 className="font-[family-name:var(--font-display)] text-3xl text-slate-700 mb-1">
+          Stasjoner
+        </h1>
+        <p className="text-sm text-slate-400">
+          Velg din nærmeste landbruksstasjon
+        </p>
+      </div>
 
       {stations.length === 0 ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center">
-          <p className="font-medium text-amber-800">Ingen stasjoner ennå</p>
-          <p className="mt-1 text-sm text-amber-600">
+        <div className="glass-card rounded-2xl p-8 text-center">
+          <p className="text-lg text-slate-600 mb-1">Ingen stasjoner ennå</p>
+          <p className="text-sm text-slate-400">
             Datainnsamling har ikke startet. Sjekk at GitHub Actions kjører.
           </p>
         </div>

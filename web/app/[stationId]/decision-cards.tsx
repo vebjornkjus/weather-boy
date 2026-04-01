@@ -34,7 +34,27 @@ function findTimeWindow(
   return `${formatHour(start)}–${formatHour(end)}`;
 }
 
-// --- Card components ---
+type CardStatus = "danger" | "warning" | "safe" | "info";
+
+function cardClass(status: CardStatus): string {
+  const map: Record<CardStatus, string> = {
+    danger: "glass-card-danger",
+    warning: "glass-card-warning",
+    safe: "glass-card-safe",
+    info: "glass-card-info",
+  };
+  return `${map[status]} rounded-2xl p-5`;
+}
+
+function statusDot(status: CardStatus): string {
+  const map: Record<CardStatus, string> = {
+    danger: "bg-red-500",
+    warning: "bg-amber-400",
+    safe: "bg-emerald-500",
+    info: "bg-sky-400",
+  };
+  return map[status];
+}
 
 function FrostCard({ corrections }: Props) {
   const next12h = corrections.slice(0, 12);
@@ -49,37 +69,36 @@ function FrostCard({ corrections }: Props) {
     next12h[0],
   );
 
-  const config = {
-    high: {
-      bg: "bg-red-50 border-red-200",
-      icon: "❄️",
-      label: "Frostfare!",
-      labelColor: "text-red-800",
-    },
-    medium: {
-      bg: "bg-amber-50 border-amber-200",
-      icon: "🌡️",
-      label: "Mulig frost",
-      labelColor: "text-amber-800",
-    },
-    low: {
-      bg: "bg-green-50 border-green-200",
-      icon: "✓",
-      label: "Ingen frostfare",
-      labelColor: "text-green-800",
-    },
-  }[worstRisk];
+  const status: CardStatus =
+    worstRisk === "high" ? "danger" : worstRisk === "medium" ? "warning" : "safe";
+
+  const labels = {
+    high: "Frostfare!",
+    medium: "Mulig frost",
+    low: "Trygt for frost",
+  };
 
   return (
-    <article className={`rounded-lg border p-4 ${config.bg}`} aria-label={config.label}>
-      <div className="flex items-center gap-2">
-        <span className="text-xl" aria-hidden="true">{config.icon}</span>
-        <span className={`font-semibold ${config.labelColor}`}>{config.label}</span>
+    <article className={cardClass(status)} aria-label={labels[worstRisk]}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2.5">
+          <span className={`h-2.5 w-2.5 rounded-full ${statusDot(status)}`} />
+          <span className="text-sm font-semibold text-slate-700">
+            {labels[worstRisk]}
+          </span>
+        </div>
+        <span className="text-xl" aria-hidden="true">
+          {worstRisk === "low" ? "🌿" : "❄️"}
+        </span>
       </div>
-      <p className="mt-1 text-sm text-stone-600">
-        Laveste: {minEntry.temp_corrected.toFixed(1)}°C kl.{" "}
-        {formatHour(minEntry.valid_at)}
-      </p>
+      <div className="flex items-end gap-1">
+        <span className="font-[family-name:var(--font-display)] text-2xl text-slate-700">
+          {minEntry.temp_corrected.toFixed(1)}°
+        </span>
+        <span className="text-xs text-slate-400 mb-1">
+          lavest · kl. {formatHour(minEntry.valid_at)}
+        </span>
+      </div>
     </article>
   );
 }
@@ -90,31 +109,33 @@ function PrecipCard({ corrections }: Props) {
   const hasRain = totalPrecip > 0.5;
   const firstRain = next12h.find((c) => (c.precip ?? 0) > 0.1);
 
-  const config = hasRain
-    ? {
-        bg: "bg-blue-50 border-blue-200",
-        icon: "🌧️",
-        label: `${totalPrecip.toFixed(1)} mm neste 12t`,
-        labelColor: "text-blue-800",
-      }
-    : {
-        bg: "bg-green-50 border-green-200",
-        icon: "☀️",
-        label: "Oppholdsvær",
-        labelColor: "text-green-800",
-      };
+  const status: CardStatus = hasRain ? "info" : "safe";
 
   return (
-    <article className={`rounded-lg border p-4 ${config.bg}`} aria-label={config.label}>
-      <div className="flex items-center gap-2">
-        <span className="text-xl" aria-hidden="true">{config.icon}</span>
-        <span className={`font-semibold ${config.labelColor}`}>{config.label}</span>
+    <article className={cardClass(status)} aria-label="Nedbør">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2.5">
+          <span className={`h-2.5 w-2.5 rounded-full ${statusDot(status)}`} />
+          <span className="text-sm font-semibold text-slate-700">
+            {hasRain ? "Nedbør" : "Oppholdsvær"}
+          </span>
+        </div>
+        <span className="text-xl" aria-hidden="true">
+          {hasRain ? "🌧" : "☀️"}
+        </span>
       </div>
-      <p className="mt-1 text-sm text-stone-600">
-        {hasRain && firstRain
-          ? `Nedbør fra kl. ${formatHour(firstRain.valid_at)}`
-          : "Tørt de neste 12 timene"}
-      </p>
+      {hasRain ? (
+        <div className="flex items-end gap-1">
+          <span className="font-[family-name:var(--font-display)] text-2xl text-slate-700">
+            {totalPrecip.toFixed(1)}
+          </span>
+          <span className="text-xs text-slate-400 mb-1">
+            mm · {firstRain ? `fra kl. ${formatHour(firstRain.valid_at)}` : "neste 12t"}
+          </span>
+        </div>
+      ) : (
+        <p className="text-xs text-slate-400">Tørt de neste 12 timene</p>
+      )}
     </article>
   );
 }
@@ -123,37 +144,22 @@ function MowingCard({ corrections }: Props) {
   const window = findTimeWindow(corrections, (c) => c.mowing_ok, 12);
   const anyOk = corrections.slice(0, 12).some((c) => c.mowing_ok);
 
-  const config = window
-    ? {
-        bg: "bg-green-50 border-green-200",
-        icon: "🌾",
-        label: "Slått OK",
-        labelColor: "text-green-800",
-        desc: `Vindu: ${window}`,
-      }
-    : anyOk
-      ? {
-          bg: "bg-amber-50 border-amber-200",
-          icon: "🌾",
-          label: "Delvis OK for slått",
-          labelColor: "text-amber-800",
-          desc: "Spredte vinduer — sjekk timesvisning",
-        }
-      : {
-          bg: "bg-red-50 border-red-200",
-          icon: "🌾",
-          label: "Ikke slått nå",
-          labelColor: "text-red-800",
-          desc: "For vått eller kaldt",
-        };
+  const status: CardStatus = window ? "safe" : anyOk ? "warning" : "danger";
 
   return (
-    <article className={`rounded-lg border p-4 ${config.bg}`} aria-label={config.label}>
-      <div className="flex items-center gap-2">
-        <span className="text-xl" aria-hidden="true">{config.icon}</span>
-        <span className={`font-semibold ${config.labelColor}`}>{config.label}</span>
+    <article className={cardClass(status)} aria-label="Slått">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2.5">
+          <span className={`h-2.5 w-2.5 rounded-full ${statusDot(status)}`} />
+          <span className="text-sm font-semibold text-slate-700">
+            {window ? "Slått OK" : anyOk ? "Delvis OK" : "Ikke slått"}
+          </span>
+        </div>
+        <span className="text-xl" aria-hidden="true">🌾</span>
       </div>
-      <p className="mt-1 text-sm text-stone-600">{config.desc}</p>
+      <p className="text-xs text-slate-400">
+        {window ? `Vindu: ${window}` : anyOk ? "Spredte vinduer" : "For vått eller kaldt"}
+      </p>
     </article>
   );
 }
@@ -162,37 +168,22 @@ function SprayingCard({ corrections }: Props) {
   const window = findTimeWindow(corrections, (c) => c.spraying_ok, 12);
   const anyOk = corrections.slice(0, 12).some((c) => c.spraying_ok);
 
-  const config = window
-    ? {
-        bg: "bg-green-50 border-green-200",
-        icon: "💧",
-        label: "Sprøyting OK",
-        labelColor: "text-green-800",
-        desc: `Vindu: ${window}`,
-      }
-    : anyOk
-      ? {
-          bg: "bg-amber-50 border-amber-200",
-          icon: "💧",
-          label: "Delvis sprøytevindu",
-          labelColor: "text-amber-800",
-          desc: "Korte vinduer — sjekk timesvisning",
-        }
-      : {
-          bg: "bg-red-50 border-red-200",
-          icon: "💧",
-          label: "Ikke sprøyting",
-          labelColor: "text-red-800",
-          desc: "For mye vind, nedbør eller feil temperatur",
-        };
+  const status: CardStatus = window ? "safe" : anyOk ? "warning" : "danger";
 
   return (
-    <article className={`rounded-lg border p-4 ${config.bg}`} aria-label={config.label}>
-      <div className="flex items-center gap-2">
-        <span className="text-xl" aria-hidden="true">{config.icon}</span>
-        <span className={`font-semibold ${config.labelColor}`}>{config.label}</span>
+    <article className={cardClass(status)} aria-label="Sprøyting">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2.5">
+          <span className={`h-2.5 w-2.5 rounded-full ${statusDot(status)}`} />
+          <span className="text-sm font-semibold text-slate-700">
+            {window ? "Sprøyting OK" : anyOk ? "Delvis vindu" : "Ikke sprøyt"}
+          </span>
+        </div>
+        <span className="text-xl" aria-hidden="true">💧</span>
       </div>
-      <p className="mt-1 text-sm text-stone-600">{config.desc}</p>
+      <p className="text-xs text-slate-400">
+        {window ? `Vindu: ${window}` : anyOk ? "Korte vinduer" : "Vind, nedbør eller temp"}
+      </p>
     </article>
   );
 }
@@ -202,37 +193,29 @@ function DryingCard({ corrections }: Props) {
   const avgScore =
     next6h.reduce((sum, c) => sum + c.drying_score, 0) / next6h.length;
 
-  const config =
-    avgScore > 0.6
-      ? {
-          bg: "bg-green-50 border-green-200",
-          icon: "☀️",
-          label: "Gode tørkeforhold",
-          labelColor: "text-green-800",
-        }
-      : avgScore > 0.3
-        ? {
-            bg: "bg-amber-50 border-amber-200",
-            icon: "🌤️",
-            label: "Middels tørkeforhold",
-            labelColor: "text-amber-800",
-          }
-        : {
-            bg: "bg-red-50 border-red-200",
-            icon: "☁️",
-            label: "Dårlige tørkeforhold",
-            labelColor: "text-red-800",
-          };
+  const status: CardStatus = avgScore > 0.6 ? "safe" : avgScore > 0.3 ? "warning" : "danger";
+  const label = avgScore > 0.6 ? "Gode tørkeforhold" : avgScore > 0.3 ? "Middels" : "Dårlig tørk";
+  const pct = Math.round(avgScore * 100);
 
   return (
-    <article className={`rounded-lg border p-4 ${config.bg}`} aria-label={config.label}>
-      <div className="flex items-center gap-2">
-        <span className="text-xl" aria-hidden="true">{config.icon}</span>
-        <span className={`font-semibold ${config.labelColor}`}>{config.label}</span>
+    <article className={cardClass(status)} aria-label={label}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2.5">
+          <span className={`h-2.5 w-2.5 rounded-full ${statusDot(status)}`} />
+          <span className="text-sm font-semibold text-slate-700">{label}</span>
+        </div>
+        <span className="text-xl" aria-hidden="true">
+          {avgScore > 0.6 ? "☀️" : avgScore > 0.3 ? "🌤" : "☁️"}
+        </span>
       </div>
-      <p className="mt-1 text-sm text-stone-600">
-        Tørkescore: {(avgScore * 100).toFixed(0)}%
-      </p>
+      {/* Progress bar */}
+      <div className="mt-1 h-1.5 rounded-full bg-white/50 overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${avgScore > 0.6 ? "bg-emerald-400" : avgScore > 0.3 ? "bg-amber-400" : "bg-red-300"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="mt-1.5 text-[11px] text-slate-400">{pct}% tørkescore</p>
     </article>
   );
 }
@@ -244,33 +227,35 @@ function WindCard({ corrections }: Props) {
     next6h.reduce((sum, c) => sum + c.wind_speed_original, 0) / next6h.length;
 
   return (
-    <article className="rounded-lg border border-stone-200 bg-white p-4" aria-label="Vind">
-      <div className="flex items-center gap-2">
+    <article className="glass-card rounded-2xl p-5" aria-label="Vind">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+          <span className="text-sm font-semibold text-slate-700">Vind</span>
+        </div>
         <span className="text-xl" aria-hidden="true">💨</span>
-        <span className="font-semibold text-stone-800">Vind</span>
       </div>
-      <p className="mt-1 text-sm text-stone-600">
-        Snitt: {avgWind.toFixed(1)} m/s · Maks: {maxWind.toFixed(1)} m/s
-      </p>
+      <div className="flex items-end gap-1">
+        <span className="font-[family-name:var(--font-display)] text-2xl text-slate-700">
+          {avgWind.toFixed(1)}
+        </span>
+        <span className="text-xs text-slate-400 mb-1">
+          m/s snitt · maks {maxWind.toFixed(1)}
+        </span>
+      </div>
     </article>
   );
 }
 
-// --- Season-based card selection ---
-
 function getSeasonCards(season: Season): ((props: Props) => React.ReactNode)[] {
   switch (season) {
     case "spring":
-      // Frost critical for new growth, spraying starts, wind matters
       return [FrostCard, PrecipCard, SprayingCard, WindCard];
     case "summer":
-      // Mowing/drying season, spraying, precipitation
       return [PrecipCard, MowingCard, DryingCard, SprayingCard];
     case "autumn":
-      // Harvest, precipitation critical, frost returns
       return [PrecipCard, FrostCard, DryingCard, WindCard];
     case "winter":
-      // Frost monitoring, precipitation (snow), wind
       return [FrostCard, PrecipCard, WindCard, DryingCard];
   }
 }
@@ -282,20 +267,27 @@ export function DecisionCards({ corrections }: Props) {
   const cards = getSeasonCards(season);
 
   const seasonLabels: Record<Season, string> = {
-    spring: "Vår",
-    summer: "Sommer",
-    autumn: "Høst",
-    winter: "Vinter",
+    spring: "vår",
+    summer: "sommer",
+    autumn: "høst",
+    winter: "vinter",
   };
 
   return (
-    <div className="mb-6">
-      <p className="mb-2 text-xs text-stone-400">
-        Sesong: {seasonLabels[season]} — kort tilpasset
-      </p>
+    <div className="mb-8">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-xs font-medium tracking-widest uppercase text-slate-400">
+          Beslutninger
+        </h2>
+        <span className="text-[10px] text-slate-300">
+          · {seasonLabels[season]}
+        </span>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {cards.map((Card, i) => (
-          <Card key={i} corrections={corrections} />
+          <div key={i} className="animate-card-enter" style={{ animationDelay: `${i * 80}ms` }}>
+            <Card corrections={corrections} />
+          </div>
         ))}
       </div>
     </div>

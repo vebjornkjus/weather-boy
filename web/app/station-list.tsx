@@ -16,7 +16,6 @@ export function StationList({ stations }: Props) {
     if (saved) setFavoriteId(saved);
   }, []);
 
-  // Sort: favorite first
   const sorted = [...stations].sort((a, b) => {
     if (a.id === favoriteId) return -1;
     if (b.id === favoriteId) return 1;
@@ -25,22 +24,29 @@ export function StationList({ stations }: Props) {
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {sorted.map((station) => (
+      {sorted.map((station, i) => (
         <Link
           key={station.id}
           href={`/${station.id}`}
-          className="relative rounded-lg border border-stone-200 bg-white p-4 transition hover:border-stone-300 hover:shadow-sm active:bg-stone-50 min-h-[56px]"
+          className="glass-card group rounded-2xl p-5 transition-all duration-200 hover:shadow-md hover:scale-[1.02] active:scale-[0.98] min-h-[72px] animate-card-enter"
+          style={{ animationDelay: `${i * 60}ms` }}
         >
-          <div className="font-medium">
+          <div className="flex items-center gap-2 mb-1">
             {station.id === favoriteId && (
-              <span className="mr-1.5 text-amber-500" aria-label="Favoritt">
+              <span className="text-amber-400 text-sm" aria-label="Favoritt">
                 ★
               </span>
             )}
-            {station.name}
+            <span className="font-medium text-slate-700 group-hover:text-slate-900 transition-colors">
+              {station.name}
+            </span>
           </div>
-          <div className="text-sm text-stone-500">
+          <div className="text-xs text-slate-400 tracking-wide">
             {station.region} · {station.elevation} moh.
+          </div>
+          <div className="mt-3 flex items-center gap-1 text-[11px] text-slate-300 group-hover:text-sky-400 transition-colors">
+            <span>Se prognose</span>
+            <span className="transition-transform group-hover:translate-x-0.5">→</span>
           </div>
         </Link>
       ))}

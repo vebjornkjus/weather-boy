@@ -41,52 +41,72 @@ export default async function StationPage({ params }: Props) {
 
   if (!station) {
     return (
-      <div className="py-12 text-center">
-        <p className="text-lg font-medium">Stasjon ikke funnet</p>
+      <div className="py-16 text-center">
+        <p className="font-[family-name:var(--font-display)] text-xl text-slate-600">
+          Stasjon ikke funnet
+        </p>
         <Link
           href="/"
-          className="mt-2 inline-block rounded-lg bg-stone-100 px-4 py-3 text-sm text-stone-700 hover:bg-stone-200"
+          className="mt-4 inline-block rounded-full bg-white/60 backdrop-blur px-5 py-2.5 text-sm text-slate-600 hover:bg-white/80 transition"
         >
-          Tilbake til oversikten
+          ← Tilbake
         </Link>
       </div>
     );
   }
 
   const lastUpdated = corrections.length > 0 ? corrections[0].created_at : null;
+  const currentTemp =
+    corrections.length > 0 ? corrections[0].temp_corrected : null;
 
   return (
     <div>
       <Link
         href="/"
-        className="mb-4 inline-block rounded-lg bg-stone-100 px-4 py-3 text-sm text-stone-600 hover:bg-stone-200 active:bg-stone-300"
+        className="mb-5 inline-flex items-center gap-1 rounded-full bg-white/50 backdrop-blur px-4 py-2 text-sm text-slate-500 hover:bg-white/70 hover:text-slate-700 transition active:scale-95"
       >
         ← Alle stasjoner
       </Link>
 
+      {/* Station hero */}
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="mb-1 text-2xl font-bold">{station.name}</h1>
-          <p className="text-sm text-stone-500">
+          <h1 className="font-[family-name:var(--font-display)] text-2xl text-slate-700 mb-0.5">
+            {station.name}
+          </h1>
+          <p className="text-xs tracking-wide text-slate-400">
             {station.region} · {station.elevation} moh.
           </p>
+
+          {currentTemp !== null && (
+            <div className="mt-3 flex items-end gap-1">
+              <span className="font-[family-name:var(--font-display)] text-5xl leading-none text-slate-700">
+                {currentTemp.toFixed(0)}
+              </span>
+              <span className="text-2xl text-slate-400 mb-1">°C</span>
+            </div>
+          )}
+
           {lastUpdated && (
-            <p className="mt-1 text-xs text-stone-400">
-              Oppdatert{" "}
-              {new Date(lastUpdated).toLocaleTimeString("nb-NO", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
+            <div className="mt-2 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-soft-pulse" />
+              <span className="text-[11px] text-slate-400">
+                Oppdatert{" "}
+                {new Date(lastUpdated).toLocaleTimeString("nb-NO", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            </div>
           )}
         </div>
         <FavoriteButton stationId={station.id} />
       </div>
 
       {corrections.length === 0 ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center">
-          <p className="font-medium text-amber-800">Ingen prognoser ennå</p>
-          <p className="mt-1 text-sm text-amber-600">
+        <div className="glass-card rounded-2xl p-8 text-center">
+          <p className="text-lg text-slate-600 mb-1">Ingen prognoser ennå</p>
+          <p className="text-sm text-slate-400">
             Venter på første datainnsamling.
           </p>
         </div>

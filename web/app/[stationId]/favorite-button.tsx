@@ -22,10 +22,12 @@ export function FavoriteButton({ stationId }: { stationId: string }) {
   return (
     <button
       onClick={toggle}
-      className="rounded-lg p-3 text-2xl hover:bg-stone-100 active:bg-stone-200"
+      className="rounded-full bg-white/40 backdrop-blur p-3 text-xl hover:bg-white/60 active:scale-90 transition-all"
       aria-label={isFavorite ? "Fjern fra favoritter" : "Sett som favoritt"}
     >
-      {isFavorite ? "★" : "☆"}
+      <span className={isFavorite ? "text-amber-400" : "text-slate-300"}>
+        {isFavorite ? "★" : "☆"}
+      </span>
     </button>
   );
 }

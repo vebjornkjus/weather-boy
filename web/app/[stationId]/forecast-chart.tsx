@@ -31,19 +31,19 @@ export function ForecastChart({ corrections }: Props) {
   const range = maxTemp - minTemp || 1;
 
   const n = corrections.length;
-  const padding = { left: 35, right: 10, top: 15, bottom: 55 };
-  const precipH = 30;
-  const chartH = 180;
+  const pad = { left: 36, right: 12, top: 20, bottom: 56 };
+  const precipH = 32;
+  const chartH = 190;
   const chartW = n * 18;
-  const totalW = chartW + padding.left + padding.right;
-  const totalH = chartH + precipH + padding.top + padding.bottom;
+  const totalW = chartW + pad.left + pad.right;
+  const totalH = chartH + precipH + pad.top + pad.bottom;
 
   function tempToY(temp: number): number {
-    return padding.top + chartH - ((temp - minTemp) / range) * chartH;
+    return pad.top + chartH - ((temp - minTemp) / range) * chartH;
   }
 
   function xPos(i: number): number {
-    return padding.left + (i / (n - 1)) * chartW;
+    return pad.left + (i / (n - 1)) * chartW;
   }
 
   // "Now" marker
@@ -59,17 +59,45 @@ export function ForecastChart({ corrections }: Props) {
     }
   }
 
-  const yrLine = corrections
-    .map((c, i) => `${xPos(i)},${tempToY(c.temp_original)}`)
-    .join(" ");
-  const correctedLine = corrections
-    .map((c, i) => `${xPos(i)},${tempToY(c.temp_corrected)}`)
-    .join(" ");
+  // Smooth path (catmull-rom approximation via cubic bezier)
+  function smoothPath(points: [number, number][]): string {
+    if (points.length < 2) return "";
+    let d = `M${points[0][0]},${points[0][1]}`;
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[Math.max(i - 1, 0)];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[Math.min(i + 2, points.length - 1)];
+      const cp1x = p1[0] + (p2[0] - p0[0]) / 6;
+      const cp1y = p1[1] + (p2[1] - p0[1]) / 6;
+      const cp2x = p2[0] - (p3[0] - p1[0]) / 6;
+      const cp2y = p2[1] - (p3[1] - p1[1]) / 6;
+      d += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2[0]},${p2[1]}`;
+    }
+    return d;
+  }
+
+  const yrPoints: [number, number][] = corrections.map((c, i) => [
+    xPos(i),
+    tempToY(c.temp_original),
+  ]);
+  const corrPoints: [number, number][] = corrections.map((c, i) => [
+    xPos(i),
+    tempToY(c.temp_corrected),
+  ]);
+
+  const yrPath = smoothPath(yrPoints);
+  const corrPath = smoothPath(corrPoints);
+
+  // Fill under corrected line
+  const corrFill =
+    corrPath +
+    ` L${xPos(n - 1)},${pad.top + chartH} L${xPos(0)},${pad.top + chartH} Z`;
 
   const maxPrecip = Math.max(...corrections.map((c) => c.precip ?? 0), 1);
-  const precipTop = padding.top + chartH + 5;
+  const precipTop = pad.top + chartH + 6;
 
-  // Y-axis labels
+  // Y labels
   const yLabels: number[] = [];
   const step = range > 15 ? 3 : range > 8 ? 2 : 1;
   for (let t = minTemp; t <= maxTemp; t += step) yLabels.push(t);
@@ -86,92 +114,100 @@ export function ForecastChart({ corrections }: Props) {
   });
 
   return (
-    <div>
-      <h2 className="mb-3 text-lg font-semibold">Prognose 48 timer</h2>
-
-      <div className="mb-2 flex gap-4 text-sm">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-4 bg-blue-400" />
-          Yr
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-4 bg-emerald-600" />
-          Weather-Boy
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-sm bg-blue-300" />
-          Nedbør
-        </span>
+    <div className="animate-card-enter" style={{ animationDelay: "300ms" }}>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xs font-medium tracking-widest uppercase text-slate-400">
+          48-timers prognose
+        </h2>
+        <div className="flex gap-4 text-[11px] text-slate-400">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-[3px] w-3 rounded-full bg-sky-300" />
+            Yr
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-[3px] w-3 rounded-full bg-emerald-500" />
+            Korrigert
+          </span>
+        </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
-        <svg
-          width={totalW}
-          height={totalH}
-          role="img"
-          aria-label="Temperaturprognose med nedbør"
-        >
-          {/* Frost zone */}
+      <div className="overflow-x-auto glass-card rounded-2xl p-1">
+        <svg width={totalW} height={totalH} role="img" aria-label="Temperaturprognose">
+          <defs>
+            <linearGradient id="corrFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#059669" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="#059669" stopOpacity="0.01" />
+            </linearGradient>
+            <linearGradient id="frostZone" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#bfdbfe" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.25" />
+            </linearGradient>
+          </defs>
+
+          {/* Frost zone below 0°C */}
           {minTemp < 0 && maxTemp >= 0 && (
             <rect
-              x={padding.left}
+              x={pad.left}
               y={tempToY(0)}
               width={chartW}
               height={tempToY(minTemp) - tempToY(0)}
-              fill="#fecaca"
-              opacity={0.25}
+              fill="url(#frostZone)"
             />
           )}
 
-          {/* Y grid + labels */}
+          {/* Y grid */}
           {yLabels.map((temp) => (
             <g key={temp}>
               <text
-                x={padding.left - 6}
+                x={pad.left - 7}
                 y={tempToY(temp) + 4}
                 textAnchor="end"
-                fill="#a8a29e"
-                fontSize={11}
+                fill="#94a3b8"
+                fontSize={10}
+                fontFamily="var(--font-body)"
               >
                 {temp}°
               </text>
               <line
-                x1={padding.left}
+                x1={pad.left}
                 y1={tempToY(temp)}
-                x2={padding.left + chartW}
+                x2={pad.left + chartW}
                 y2={tempToY(temp)}
-                stroke={temp === 0 ? "#ef4444" : "#e7e5e4"}
+                stroke={temp === 0 ? "#e2786a" : "#e2e8f0"}
                 strokeWidth={temp === 0 ? 1 : 0.5}
-                strokeDasharray={temp === 0 ? "4 3" : undefined}
+                strokeDasharray={temp === 0 ? "5 3" : undefined}
+                opacity={temp === 0 ? 0.6 : 0.5}
               />
             </g>
           ))}
 
-          {/* Date boundaries + labels */}
+          {/* Date boundaries */}
           {dates.map((d, di) => (
             <g key={di}>
               <line
                 x1={d.x}
-                y1={padding.top}
+                y1={pad.top}
                 x2={d.x}
                 y2={precipTop + precipH}
-                stroke="#d6d3d1"
+                stroke="#cbd5e1"
                 strokeWidth={0.5}
-                strokeDasharray="3 3"
+                strokeDasharray="3 4"
+                opacity={0.5}
               />
               <text
-                x={d.x + 3}
+                x={d.x + 4}
                 y={precipTop + precipH + 14}
-                fill="#78716c"
+                fill="#64748b"
                 fontSize={11}
                 fontWeight={500}
+                fontFamily="var(--font-body)"
               >
                 {d.label}
               </text>
             </g>
           ))}
 
-          {/* Hour labels — every 3rd hour */}
+          {/* Hour labels */}
           {corrections.map((c, i) =>
             i % 3 === 0 ? (
               <text
@@ -179,8 +215,9 @@ export function ForecastChart({ corrections }: Props) {
                 x={xPos(i)}
                 y={precipTop + precipH + 30}
                 textAnchor="middle"
-                fill="#a8a29e"
+                fill="#94a3b8"
                 fontSize={10}
+                fontFamily="var(--font-body)"
               >
                 {formatHour(c.valid_at)}
               </text>
@@ -199,9 +236,9 @@ export function ForecastChart({ corrections }: Props) {
                 y={precipTop + precipH - barH}
                 width={8}
                 height={barH}
-                fill="#93c5fd"
-                opacity={0.7}
-                rx={2}
+                fill="#7dd3fc"
+                opacity={0.6}
+                rx={3}
               />
             );
           })}
@@ -211,100 +248,116 @@ export function ForecastChart({ corrections }: Props) {
             <g>
               <line
                 x1={nowX}
-                y1={padding.top}
+                y1={pad.top}
                 x2={nowX}
                 y2={precipTop + precipH}
                 stroke="#f97316"
                 strokeWidth={1.5}
+                opacity={0.7}
               />
+              <circle cx={nowX} cy={pad.top - 2} r={3} fill="#f97316" opacity={0.8} />
               <text
                 x={nowX}
-                y={padding.top - 4}
+                y={pad.top - 10}
                 textAnchor="middle"
                 fill="#f97316"
-                fontSize={11}
+                fontSize={10}
                 fontWeight={600}
+                fontFamily="var(--font-body)"
               >
                 nå
               </text>
             </g>
           )}
 
+          {/* Fill under corrected line */}
+          <path d={corrFill} fill="url(#corrFill)" />
+
           {/* Yr line */}
-          <polyline
-            points={yrLine}
+          <path
+            d={yrPath}
             fill="none"
-            stroke="#60a5fa"
+            stroke="#7dd3fc"
             strokeWidth={1.5}
-            strokeLinejoin="round"
+            opacity={0.7}
           />
 
           {/* Corrected line */}
-          <polyline
-            points={correctedLine}
+          <path
+            d={corrPath}
             fill="none"
             stroke="#059669"
-            strokeWidth={2}
-            strokeLinejoin="round"
+            strokeWidth={2.5}
+            strokeLinecap="round"
           />
         </svg>
       </div>
 
-      {/* Hourly detail table */}
+      {/* Hourly table */}
       <details className="mt-4">
-        <summary className="cursor-pointer rounded-lg bg-stone-100 px-4 py-3 text-sm text-stone-600 hover:bg-stone-200 active:bg-stone-300">
+        <summary className="cursor-pointer glass-card rounded-xl px-4 py-3 text-sm text-slate-500 hover:text-slate-700 transition">
           Vis timesverdier
         </summary>
-        <div className="mt-2 overflow-x-auto">
+        <div className="mt-2 glass-card rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-stone-200 text-left text-stone-500">
-                <th className="py-2 pr-3">Tid</th>
-                <th className="py-2 pr-3">Yr</th>
-                <th className="py-2 pr-3">Korr.</th>
-                <th className="py-2 pr-3">Diff</th>
-                <th className="py-2 pr-3">Nedbør</th>
-                <th className="py-2 pr-3">Vind</th>
-                <th className="py-2">Frost</th>
+              <tr className="border-b border-slate-200/50 text-left text-[11px] tracking-wider uppercase text-slate-400">
+                <th className="py-3 px-4">Tid</th>
+                <th className="py-3 px-2">Yr</th>
+                <th className="py-3 px-2">Korr.</th>
+                <th className="py-3 px-2">Diff</th>
+                <th className="py-3 px-2">Nedbør</th>
+                <th className="py-3 px-2">Vind</th>
+                <th className="py-3 px-2">Frost</th>
               </tr>
             </thead>
             <tbody>
-              {corrections.map((c) => {
+              {corrections.map((c, i) => {
                 const diff = c.temp_corrected - c.temp_original;
+                const isEven = i % 2 === 0;
                 return (
-                  <tr key={c.valid_at} className="border-b border-stone-100">
-                    <td className="py-1.5 pr-3 text-stone-600">
+                  <tr
+                    key={c.valid_at}
+                    className={`border-b border-slate-100/30 ${isEven ? "bg-white/20" : ""}`}
+                  >
+                    <td className="py-2 px-4 text-slate-500 font-medium">
                       {formatHour(c.valid_at)}
                     </td>
-                    <td className="py-1.5 pr-3">
+                    <td className="py-2 px-2 text-slate-400">
                       {c.temp_original?.toFixed(1)}°
                     </td>
-                    <td className="py-1.5 pr-3 font-medium">
+                    <td className="py-2 px-2 font-semibold text-slate-700">
                       {c.temp_corrected?.toFixed(1)}°
                     </td>
                     <td
-                      className={`py-1.5 pr-3 ${diff < -0.1 ? "text-blue-600" : diff > 0.1 ? "text-red-600" : ""}`}
+                      className={`py-2 px-2 text-xs ${
+                        diff < -0.1
+                          ? "text-sky-500"
+                          : diff > 0.1
+                            ? "text-rose-400"
+                            : "text-slate-300"
+                      }`}
                     >
                       {diff > 0 ? "+" : ""}
                       {diff.toFixed(1)}°
                     </td>
-                    <td className="py-1.5 pr-3 text-blue-600">
+                    <td className="py-2 px-2 text-sky-400">
                       {(c.precip ?? 0) > 0
-                        ? `${(c.precip ?? 0).toFixed(1)} mm`
+                        ? `${(c.precip ?? 0).toFixed(1)}`
                         : "—"}
                     </td>
-                    <td className="py-1.5 pr-3">
-                      {c.wind_speed_original?.toFixed(1)} m/s
+                    <td className="py-2 px-2 text-slate-400">
+                      {c.wind_speed_original?.toFixed(1)}
                     </td>
-                    <td className="py-1.5">
+                    <td className="py-2 px-2">
                       {c.frost_risk === "high" && (
-                        <span className="font-medium text-red-600" aria-label="Høy frostrisiko">Høy</span>
+                        <span className="inline-block h-2 w-2 rounded-full bg-red-400" aria-label="Høy" />
                       )}
                       {c.frost_risk === "medium" && (
-                        <span className="text-amber-600" aria-label="Middels frostrisiko">Mid</span>
+                        <span className="inline-block h-2 w-2 rounded-full bg-amber-400" aria-label="Middels" />
                       )}
                       {c.frost_risk === "low" && (
-                        <span className="text-green-600" aria-label="Lav frostrisiko">Lav</span>
+                        <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" aria-label="Lav" />
                       )}
                     </td>
                   </tr>

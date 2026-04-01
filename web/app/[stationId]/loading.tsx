@@ -1,20 +1,25 @@
 export default function Loading() {
   return (
     <div className="animate-pulse">
-      <div className="mb-4 h-4 w-24 rounded bg-stone-200" />
-      <div className="mb-1 h-8 w-48 rounded bg-stone-200" />
-      <div className="mb-6 h-4 w-64 rounded bg-stone-200" />
+      <div className="mb-5 h-9 w-28 rounded-full bg-white/30" />
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-2">
+      <div className="mb-6">
+        <div className="mb-1 h-7 w-44 rounded-lg bg-white/30" />
+        <div className="mb-3 h-3 w-32 rounded bg-white/20" />
+        <div className="h-14 w-24 rounded-lg bg-white/20" />
+      </div>
+
+      <div className="mb-3 h-3 w-20 rounded bg-white/20" />
+      <div className="mb-8 grid gap-3 sm:grid-cols-2">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-24 rounded-lg border border-stone-200 bg-white p-4">
-            <div className="mb-2 h-4 w-32 rounded bg-stone-100" />
-            <div className="h-3 w-48 rounded bg-stone-100" />
+          <div key={i} className="glass-card rounded-2xl p-5 h-28">
+            <div className="mb-3 h-3 w-24 rounded bg-white/30" />
+            <div className="h-7 w-16 rounded bg-white/20" />
           </div>
         ))}
       </div>
 
-      <div className="h-64 rounded-lg border border-stone-200 bg-white" />
+      <div className="glass-card rounded-2xl h-72" />
     </div>
   );
 }
